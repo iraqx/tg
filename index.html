@@ -180,19 +180,37 @@
                 return res.ok ? `https://api.telegram.org/file/bot${botToken}/${res.result.file_path}` : null;
             } catch (e) { return null; }
         };
-        const downloadFile = async (fileId, fileName) => {
-            const url = await getFileUrl(fileId);
-            if (!url) { alert('Could not get file URL.'); return; }
-            try {
-                const res = await fetch(url), blob = await res.blob(), link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
-            } catch (e) { alert('Download failed.'); }
-        };
+        // --- الكود الجديد (المُصحح) ---
+const downloadFile = async (fileId, fileName) => {
+    const url = await getFileUrl(fileId);
+    if (!url) {
+        alert('Could not get file URL. Please try again.');
+        return;
+    }
+
+    try {
+        // Create a temporary link element
+        const link = document.createElement('a');
+        link.href = url;
+
+        // The 'download' attribute is crucial. It tells the browser to download the file
+        // instead of navigating to it.
+        link.setAttribute('download', fileName || 'download');
+
+        // We need to append the link to the body for it to be clickable in some browsers
+        document.body.appendChild(link);
+
+        // Programmatically click the link to trigger the download
+        link.click();
+
+        // Clean up by removing the temporary link
+        document.body.removeChild(link);
+
+    } catch (e) {
+        console.error('Download initiation failed:', e);
+        alert('Download failed. Your browser might be blocking the download.');
+    }
+};
         const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({'&': '&', '<': '<', '>': '>', "'": '\'', '"': '"'}[tag] || tag));
         const saveChatsToStorage = () => {
             const chatsToSave = {};
