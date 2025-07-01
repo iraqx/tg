@@ -211,7 +211,14 @@ const downloadFile = async (fileId, fileName) => {
         alert('Download failed. Your browser might be blocking the download.');
     }
 };
-        const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({'&': '&', '<': '<', '>': '>', "'": '\'', '"': '"'}[tag] || tag));
+
+const escapeHTML = (str) => str.replace(/[&<>'"]/g, tag => ({
+    '&': '&',
+    '<': '<',
+    '>': '>',
+    "'": '\'',
+    '"': '"'
+}[tag] || tag));
         const saveChatsToStorage = () => {
             const chatsToSave = {};
             for (const id in chats) { chatsToSave[id] = chats[id].info; }
@@ -400,66 +407,66 @@ const downloadFile = async (fileId, fileName) => {
                 } catch (error) { alert('An error occurred while sending the message.'); }
                 return;
             }
-            // File upload with progress
-            const tempId = `pending-${Date.now()}`;
-            const filePreviewURL = URL.createObjectURL(file);
-            let previewHTML = `<img src="${filePreviewURL}" class="rounded-md max-w-xs max-h-80 object-cover">`;
-            if (file.type.startsWith('video/')) previewHTML = `<video src="${filePreviewURL}" class="rounded-md max-w-xs"></video>`;
-            const pendingMessageHTML = `<div id="${tempId}" class="flex items-end gap-2 justify-end message-appear group"><div class="relative max-w-md lg:max-w-2xl p-1 rounded-lg bg-sky-600 text-white">${previewHTML}${text ? `<div class="px-3 py-2 whitespace-pre-wrap break-words">${escapeHTML(text)}</div>` : ''}<div class="p-2"><div class="progress-bar h-1.5 bg-sky-400/30 rounded-full"><div class="progress-bar-fill h-full bg-sky-300 rounded-full w-0 transition-all duration-300"></div></div><p class="progress-text text-xs text-sky-200 text-center mt-1">Uploading 0%</p></div></div></div>`;
-            document.getElementById('empty-chat-placeholder')?.remove();
-            messageList.insertAdjacentHTML('beforeend', pendingMessageHTML);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-            const formData = new FormData();
-            formData.append('chat_id', currentChatId);
-            const fileType = file.type.split('/')[0];
-            let method = 'sendDocument', fieldName = 'document';
-            if (fileType === 'image') { method = 'sendPhoto'; fieldName = 'photo'; }
-            if (fileType === 'video') { method = 'sendVideo'; fieldName = 'video'; }
-            if (fileType === 'audio') { method = 'sendAudio'; fieldName = 'audio'; }
-            formData.append(fieldName, file);
-            if (text) formData.append('caption', text);
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', `https://api.telegram.org/bot${botToken}/${method}`, true);
-            xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    const percent = Math.round((event.loaded / event.total) * 100);
-                    const pendingEl = document.getElementById(tempId);
-                    if (pendingEl) {
-                        pendingEl.querySelector('.progress-bar-fill').style.width = `${percent}%`;
-                        pendingEl.querySelector('.progress-text').textContent = `Uploading ${percent}%`;
-                    }
-                }
-            };
-            xhr.onload = () => {
-                URL.revokeObjectURL(filePreviewURL);
-                const pendingEl = document.getElementById(tempId);
-                if (xhr.status === 200) {
-                    const res = JSON.parse(xhr.responseText);
-                    if (res.ok) {
-                        chats[currentChatId].messages.push(res.result);
-                        appendMessageToUI(res.result, true, tempId);
-                        renderChatList();
-                    } else {
-                        if (pendingEl) pendingEl.querySelector('.progress-text').textContent = `Failed: ${res.description}`;
-                        if (pendingEl) pendingEl.querySelector('.progress-bar-fill').classList.add('bg-red-500');
-                    }
-                } else {
-                    if (pendingEl) pendingEl.querySelector('.progress-text').textContent = `Upload Error: ${xhr.statusText}`;
-                    if (pendingEl) pendingEl.querySelector('.progress-bar-fill').classList.add('bg-red-500');
-                }
-            };
-            xhr.onerror = () => {
-                URL.revokeObjectURL(filePreviewURL);
-                const pendingEl = document.getElementById(tempId);
-                if (pendingEl) {
-                    pendingEl.querySelector('.progress-text').textContent = 'Network Error';
-                    pendingEl.querySelector('.progress-bar-fill').classList.add('bg-red-500');
-                }
-            };
-            xhr.send(formData);
-        };
+const tempId = `pending-${Date.now()}`;
+const filePreviewURL = URL.createObjectURL(file);
+
+// Create a simple "pending" message without a progress bar
+let previewHTML = `<img src="${filePreviewURL}" class="rounded-md max-w-xs max-h-80 object-cover">`;
+if (file.type.startsWith('video/')) {
+    previewHTML = `<video src="${filePreviewURL}" class="rounded-md max-w-xs"></video>`;
+}
+const pendingMessageHTML = `
+    <div id="${tempId}" class="flex items-end gap-2 justify-end message-appear group">
+        <div class="relative max-w-md lg:max-w-2xl p-1 rounded-lg bg-sky-600 text-white opacity-70">
+            ${previewHTML}
+            ${text ? `<div class="px-3 py-2 whitespace-pre-wrap break-words">${escapeHTML(text)}</div>` : ''}
+            <div class="text-xs text-sky-200 text-center p-1">Sending...</div>
+        </div>
+    </div>`;
+
+document.getElementById('empty-chat-placeholder')?.remove();
+messageList.insertAdjacentHTML('beforeend', pendingMessageHTML);
+messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+// Prepare FormData for the API call
+const formData = new FormData();
+formData.append('chat_id', currentChatId);
+const fileType = file.type.split('/')[0];
+let method = 'sendDocument', fieldName = 'document';
+if (fileType === 'image') { method = 'sendPhoto'; fieldName = 'photo'; }
+if (fileType === 'video') { method = 'sendVideo'; fieldName = 'video'; }
+if (fileType === 'audio') { method = 'sendAudio'; fieldName = 'audio'; }
+formData.append(fieldName, file);
+if (text) formData.append('caption', text);
+
+try {
+    const res = await telegramApi(method, formData);
+    URL.revokeObjectURL(filePreviewURL); // Clean up the preview URL
+
+    if (res.ok) {
+        // Success: Replace the pending message with the final one
+        chats[currentChatId].messages.push(res.result);
+        await appendMessageToUI(res.result, true, tempId);
+        renderChatList();
+    } else {
+        // Failure: Update the pending message to show an error
+        const pendingEl = document.getElementById(tempId);
+        if (pendingEl) {
+            pendingEl.querySelector('.opacity-70').classList.add('bg-red-600');
+            pendingEl.querySelector('.text-xs').textContent = `Failed: ${res.description}`;
+        }
+    }
+} catch (error) {
+    URL.revokeObjectURL(filePreviewURL);
+    const pendingEl = document.getElementById(tempId);
+    if (pendingEl) {
+        pendingEl.querySelector('.opacity-70').classList.add('bg-red-600');
+        pendingEl.querySelector('.text-xs').textContent = 'Upload Error';
+    }
+    alert('An error occurred while uploading the file.');
+}}
         const getUpdatesLoop = async () => {
             if (!botToken) return;
             if (getUpdatesController) getUpdatesController.abort();
